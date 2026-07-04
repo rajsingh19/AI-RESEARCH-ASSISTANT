@@ -29,6 +29,8 @@ class Settings:
     app_env: str
     debug: bool
     log_level: str
+    port: int
+
 
     # ── Database ───────────────────────────────────────────────────────────────
     database_url: str
@@ -223,6 +225,7 @@ def get_settings() -> Settings:
         or "Stock Market Assistant API",
         app_version=_get_env("APP_VERSION", "1.0.0") or "1.0.0",
         app_env=app_env,
+        port=_parse_int(_get_env("PORT"), default=8000, name="PORT", min_value=1),
         debug=debug,
         log_level=log_level,
         database_url=database_url,
