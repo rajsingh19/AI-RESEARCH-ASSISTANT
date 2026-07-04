@@ -15,6 +15,8 @@ from app.config import get_settings
 from app.database.database import get_db
 from app.models.chat import ChatRequest, ChatResponse, HybridChatResponse, NewsResponse, IntentType
 from app.models.conversation import Conversation, Message
+from app.models.user import User
+from app.auth.deps import get_current_user
 from app.services.ai_service import GeminiAIService, get_ai_service
 from app.services.chat_service import ChatService
 from app.services.context_builder import ContextBuilder
@@ -308,9 +310,17 @@ class MessageCreate(BaseModel):
 
 
 @router.get("/api/conversations", summary="Get all conversations list")
-def get_conversations(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+def get_conversations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     from sqlalchemy import desc
-    conversations = db.query(Conversation).order_by(desc(Conversation.updated_at)).all()
+    conversations = (
+        db.query(Conversation)
+        .filter(Conversation.user_id == current_user.id)
+        .order_by(desc(Conversation.updated_at))
+        .all()
+    )
     return [
         {
             "id": conv.id,
@@ -323,9 +333,15 @@ def get_conversations(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
 
 
 @router.get("/api/conversations/{id}", summary="Get conversation details by id")
-def get_conversation(id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+def get_conversation(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     from fastapi import HTTPException
-    conv = db.query(Conversation).filter(Conversation.id == id).first()
+    conv = db.query(Conversation).filter(
+        Conversation.id == id, Conversation.user_id == current_user.id
+    ).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
         
@@ -358,36 +374,41 @@ def get_conversation(id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
 
 
 @router.post("/api/conversations", summary="Create a new conversation")
-def create_conversation(req: ConversationCreate, db: Session = Depends(get_db)) -> dict[str, Any]:
+def create_conversation(
+    req: ConversationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     conv_id = req.id or f"conv_{uuid.uuid4().hex[:12]}"
-    existing = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    existing = db.query(Conversation).filter(
+        Conversation.id == conv_id, Conversation.user_id == current_user.id
+    ).first()
     if existing:
-        return {
-            "id": existing.id,
-            "title": existing.title,
-            "messages": []
-        }
-    
+        return {"id": existing.id, "title": existing.title, "messages": []}
+
     new_conv = Conversation(
         id=conv_id,
+        user_id=current_user.id,
         title=req.title or "New Chat",
         created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        updated_at=datetime.utcnow(),
     )
     db.add(new_conv)
     db.commit()
     db.refresh(new_conv)
-    return {
-        "id": new_conv.id,
-        "title": new_conv.title,
-        "messages": []
-    }
+    return {"id": new_conv.id, "title": new_conv.title, "messages": []}
 
 
 @router.delete("/api/conversations/{id}", summary="Delete conversation by id")
-def delete_conversation(id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+def delete_conversation(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, Any]:
     from fastapi import HTTPException
-    conv = db.query(Conversation).filter(Conversation.id == id).first()
+    conv = db.query(Conversation).filter(
+        Conversation.id == id, Conversation.user_id == current_user.id
+    ).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     db.delete(conv)
@@ -421,10 +442,13 @@ def add_message(
     id: str,
     req: MessageCreate,
     db: Session = Depends(get_db),
-    svc: ChatService = Depends(get_chat_service)
+    svc: ChatService = Depends(get_chat_service),
+    current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     from fastapi import HTTPException
-    conv = db.query(Conversation).filter(Conversation.id == id).first()
+    conv = db.query(Conversation).filter(
+        Conversation.id == id, Conversation.user_id == current_user.id
+    ).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
         
@@ -522,10 +546,13 @@ async def stream_conversation_message(
     req: MessageCreate,
     db: Session = Depends(get_db),
     svc: ChatService = Depends(get_chat_service),
-    ai_service: GeminiAIService = Depends(get_ai_service)
+    ai_service: GeminiAIService = Depends(get_ai_service),
+    current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     from fastapi import HTTPException
-    conv = db.query(Conversation).filter(Conversation.id == id).first()
+    conv = db.query(Conversation).filter(
+        Conversation.id == id, Conversation.user_id == current_user.id
+    ).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
         
