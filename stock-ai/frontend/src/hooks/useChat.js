@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import axios from 'axios'
+import { useAuth } from '../context/AuthContext'
 import {
   getConversations,
   getConversationDetails,
@@ -9,6 +10,7 @@ import {
 } from '../services/api'
 
 export const useChat = () => {
+  const { token } = useAuth()
   const [conversations, setConversations] = useState([])
   const [selectedConversationId, setSelectedConversationId] = useState(null)
   const [messages, setMessages] = useState([])
@@ -16,34 +18,35 @@ export const useChat = () => {
   const [error, setError] = useState(null)
   const [lastQuery, setLastQuery] = useState(null)
 
-  // Controller reference to cancel previous requests (AbortController)
   const abortControllerRef = useRef(null)
 
-  // Load initial conversations on mount
+  // Re-initialize whenever the user logs in (token changes)
   useEffect(() => {
+    if (!token) {
+      setConversations([])
+      setSelectedConversationId(null)
+      setMessages([])
+      return
+    }
+
     const initializeChat = async () => {
       try {
         const list = await getConversations()
         setConversations(list)
         if (list.length > 0) {
-          // Select the most recent active conversation
           await selectConversation(list[0].id)
         } else {
-          // Start with a clean new chat session if database is empty
           await triggerNewChat()
         }
       } catch (err) {
-        console.error("Failed to initialize conversation list on mount:", err)
+        console.error('Failed to initialize conversation list:', err)
       }
     }
     initializeChat()
-  }, [])
+  }, [token])
 
-  // Switch to another conversation
   const selectConversation = useCallback(async (id) => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
+    if (abortControllerRef.current) abortControllerRef.current.abort()
     setLoading(true)
     setError(null)
     setLastQuery(null)
@@ -52,18 +55,15 @@ export const useChat = () => {
       const details = await getConversationDetails(id)
       setMessages(details.messages || [])
     } catch (err) {
-      console.error(`Failed to load conversation details for id=${id}:`, err)
-      setError("Failed to load chat history. Please try again.")
+      console.error(`Failed to load conversation id=${id}:`, err)
+      setError('Failed to load chat history. Please try again.')
     } finally {
       setLoading(false)
     }
   }, [])
 
-  // Start a fresh empty new chat session
   const triggerNewChat = useCallback(async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
+    if (abortControllerRef.current) abortControllerRef.current.abort()
     setError(null)
     setLastQuery(null)
     setLoading(true)
@@ -71,64 +71,45 @@ export const useChat = () => {
       const newConv = await createConversation()
       setSelectedConversationId(newConv.id)
       setMessages([])
-      
-      // Refresh list to show the new empty chat row
       const list = await getConversations()
       setConversations(list)
     } catch (err) {
-      console.error("Failed to trigger new conversation session:", err)
-      setError("Failed to start new chat session.")
+      console.error('Failed to create new conversation:', err)
+      setError('Failed to start new chat session.')
     } finally {
       setLoading(false)
     }
   }, [])
 
-  // Delete a conversation thread
   const deleteChat = useCallback(async (id) => {
     try {
       await deleteConversation(id)
       const list = await getConversations()
       setConversations(list)
-      
-      // If we deleted the active conversation, switch focus
       if (selectedConversationId === id) {
-        if (list.length > 0) {
-          await selectConversation(list[0].id)
-        } else {
-          await triggerNewChat()
-        }
+        if (list.length > 0) await selectConversation(list[0].id)
+        else await triggerNewChat()
       }
     } catch (err) {
       console.error(`Failed to delete conversation id=${id}:`, err)
     }
   }, [selectedConversationId, selectConversation, triggerNewChat])
 
-  // Cancel running stream generation
   const cancelRequest = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
       setLoading(false)
-      // Stop typing state indicators
-      setMessages(prev => prev.map(msg => {
-        if (msg.loading) {
-          return { ...msg, loading: false, content: msg.content + " [Generation Interrupted]" }
-        }
-        return msg
-      }))
+      setMessages(prev => prev.map(msg =>
+        msg.loading ? { ...msg, loading: false, content: msg.content + ' [Generation Interrupted]' } : msg
+      ))
     }
   }, [])
 
-  // Send a user question
   const sendQuestion = useCallback(async (question) => {
     if (!question.trim()) return
 
-    // 1. Cancel previous pending request if a new question is asked
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-
-    // 2. Setup a new AbortController
+    if (abortControllerRef.current) abortControllerRef.current.abort()
     const controller = new AbortController()
     abortControllerRef.current = controller
 
@@ -139,19 +120,14 @@ export const useChat = () => {
         currentId = newConv.id
         setSelectedConversationId(currentId)
       } catch (err) {
-        setError("Failed to start conversation session.")
+        setError('Failed to start conversation session.')
         return
       }
     }
 
     const userMessage = { id: Date.now(), role: 'user', content: question }
     const assistantMsgId = Date.now() + 1
-    const emptyAssistantMessage = {
-      id: assistantMsgId,
-      role: 'assistant',
-      content: '',
-      loading: true // Shows cursor/spinner until first token arrives
-    }
+    const emptyAssistantMessage = { id: assistantMsgId, role: 'assistant', content: '', loading: true }
 
     setMessages(prev => [...prev, userMessage, emptyAssistantMessage])
     setLoading(true)
@@ -163,75 +139,50 @@ export const useChat = () => {
         currentId,
         question,
         (token) => {
-          // Append streamed tokens to current message
-          setMessages(prev => prev.map(msg => {
-            if (msg.id === assistantMsgId) {
-              return {
-                ...msg,
-                content: msg.content + token
-              }
-            }
-            return msg
-          }))
+          setMessages(prev => prev.map(msg =>
+            msg.id === assistantMsgId ? { ...msg, content: msg.content + token } : msg
+          ))
         },
         (metadata) => {
-          // Append citation sources and formatting at the end
-          setMessages(prev => prev.map(msg => {
-            if (msg.id === assistantMsgId) {
-              return {
-                ...msg,
-                loading: false, // Turn off active cursor
-                intent: metadata.intent,
-                companies: metadata.companies || [],
-                metrics: metadata.metrics || [],
-                financial_data: metadata.financial_data || {},
-                documents: metadata.documents || [],
-                news: metadata.news || [],
-                sources: metadata.sources || [],
-                warnings: metadata.warnings || [],
-              }
-            }
-            return msg
-          }))
+          setMessages(prev => prev.map(msg =>
+            msg.id === assistantMsgId
+              ? {
+                  ...msg,
+                  loading: false,
+                  intent: metadata.intent,
+                  companies: metadata.companies || [],
+                  metrics: metadata.metrics || [],
+                  financial_data: metadata.financial_data || {},
+                  documents: metadata.documents || [],
+                  news: metadata.news || [],
+                  sources: metadata.sources || [],
+                  warnings: metadata.warnings || [],
+                }
+              : msg
+          ))
         },
         controller.signal
       )
-      
-      // 3. Refresh conversations list to update dynamic title & sorting updatedAt order
+
       const list = await getConversations()
       setConversations(list)
     } catch (err) {
-      // Gracefully handle abort triggers
-      if (err.name === 'AbortError' || axios.isCancel(err)) {
-        console.log(`Stream generation for query "${question}" was cancelled.`)
-        return
-      }
+      if (err.name === 'AbortError' || axios.isCancel(err)) return
 
       const isTimeout = err.code === 'ECONNABORTED' || err.message?.toLowerCase().includes('timeout')
-      let userFriendlyMsg = 'Something went wrong. Please try again.'
+      const userFriendlyMsg = isTimeout
+        ? 'The request is taking longer than expected. Please try again.'
+        : err.response?.data?.detail || err.message || 'Something went wrong.'
 
-      if (isTimeout) {
-        userFriendlyMsg = 'The request is taking longer than expected. Please try again in a moment.'
-      } else {
-        userFriendlyMsg = err.response?.data?.detail || err.message || 'Something went wrong.'
-      }
-
-      console.error("Detailed error captured during sendQuestion:", err)
       setError(userFriendlyMsg)
-      
-      // Remove empty assistant message on fetch failure
       setMessages(prev => prev.filter(msg => msg.id !== assistantMsgId))
     } finally {
-      if (abortControllerRef.current === controller) {
-        setLoading(false)
-      }
+      if (abortControllerRef.current === controller) setLoading(false)
     }
   }, [selectedConversationId])
 
   const retryLastQuery = useCallback(() => {
-    if (lastQuery) {
-      sendQuestion(lastQuery)
-    }
+    if (lastQuery) sendQuestion(lastQuery)
   }, [lastQuery, sendQuestion])
 
   const clearError = useCallback(() => setError(null), [])
@@ -248,6 +199,6 @@ export const useChat = () => {
     selectConversation,
     deleteChat,
     cancelRequest,
-    clearError
+    clearError,
   }
 }

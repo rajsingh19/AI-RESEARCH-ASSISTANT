@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.chat import router
+from app.auth.router import router as auth_router
 from app.config import SettingsError
 from app.config import get_settings
 from app.database.database import Base
@@ -18,6 +19,7 @@ from app.seed import seed_database
 from app.utils.exceptions import AppError
 from app.utils.logging import configure_logging
 from app.models.conversation import Conversation, Message
+from app.models.user import User  # noqa: F401 — ensures User table is created
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -70,6 +72,7 @@ app = FastAPI(
 )
 
 app.include_router(router)
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,

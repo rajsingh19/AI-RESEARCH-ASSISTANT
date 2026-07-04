@@ -1,4 +1,6 @@
-import { Plus, MessageSquare, Sparkles, ChevronDown, Trash2 } from 'lucide-react'
+import { Plus, MessageSquare, Sparkles, LogOut, Trash2 } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 export default function Sidebar({
   conversations = [],
@@ -7,37 +9,33 @@ export default function Sidebar({
   onDeleteConversation,
   onNewChat
 }) {
-  // Chronological grouping helper
-  const getGroupedConversations = () => {
-    const groups = {
-      today: [],
-      yesterday: [],
-      last7Days: [],
-      last30Days: [],
-      older: []
-    }
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
 
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
+  const getInitials = (name = '') =>
+    name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'
+
+  const getGroupedConversations = () => {
+    const groups = { today: [], yesterday: [], last7Days: [], last30Days: [], older: [] }
     const now = new Date()
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000
-    const sevenDaysAgoStart = todayStart - 6 * 24 * 60 * 60 * 1000
-    const thirtyDaysAgoStart = todayStart - 29 * 24 * 60 * 60 * 1000
+    const yesterdayStart = todayStart - 86400000
+    const sevenDaysAgoStart = todayStart - 6 * 86400000
+    const thirtyDaysAgoStart = todayStart - 29 * 86400000
 
     conversations.forEach(conv => {
-      const updatedTime = new Date(conv.updatedAt).getTime()
-      if (updatedTime >= todayStart) {
-        groups.today.push(conv)
-      } else if (updatedTime >= yesterdayStart) {
-        groups.yesterday.push(conv)
-      } else if (updatedTime >= sevenDaysAgoStart) {
-        groups.last7Days.push(conv)
-      } else if (updatedTime >= thirtyDaysAgoStart) {
-        groups.last30Days.push(conv)
-      } else {
-        groups.older.push(conv)
-      }
+      const t = new Date(conv.updatedAt).getTime()
+      if (t >= todayStart) groups.today.push(conv)
+      else if (t >= yesterdayStart) groups.yesterday.push(conv)
+      else if (t >= sevenDaysAgoStart) groups.last7Days.push(conv)
+      else if (t >= thirtyDaysAgoStart) groups.last30Days.push(conv)
+      else groups.older.push(conv)
     })
-
     return groups
   }
 
@@ -67,10 +65,7 @@ export default function Sidebar({
                 </div>
                 {onDeleteConversation && (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDeleteConversation(conv.id)
-                    }}
+                    onClick={(e) => { e.stopPropagation(); onDeleteConversation(conv.id) }}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[#1F2937] rounded-lg text-gray-500 hover:text-red-400 transition-all ml-1.5 flex-shrink-0"
                     title="Delete Chat"
                   >
@@ -98,17 +93,17 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Grouped Conversations Scroll area */}
+      {/* Grouped Conversations */}
       <div className="flex-1 overflow-y-auto px-3 select-none">
         {conversations.length === 0 ? (
           <div className="text-center py-8 text-xs text-gray-500">No conversations yet</div>
         ) : (
           <>
-            {renderGroup("Today", grouped.today)}
-            {renderGroup("Yesterday", grouped.yesterday)}
-            {renderGroup("Previous 7 Days", grouped.last7Days)}
-            {renderGroup("Previous 30 Days", grouped.last30Days)}
-            {renderGroup("Older", grouped.older)}
+            {renderGroup('Today', grouped.today)}
+            {renderGroup('Yesterday', grouped.yesterday)}
+            {renderGroup('Previous 7 Days', grouped.last7Days)}
+            {renderGroup('Previous 30 Days', grouped.last30Days)}
+            {renderGroup('Older', grouped.older)}
           </>
         )}
       </div>
@@ -124,17 +119,23 @@ export default function Sidebar({
         <p className="text-xs text-gray-500">Our AI assistant is powered by<br />advanced LLM & real-time data.</p>
       </div>
 
-      {/* Profile */}
+      {/* Profile + Logout */}
       <div className="px-3 pb-4">
         <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-[#111827] border border-[#1F2937]">
           <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-            RS
+            {getInitials(user?.name)}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">Raj Singh</p>
-            <p className="text-xs text-gray-500 truncate">rajsingh190904@gmail.com</p>
+            <p className="text-sm font-semibold text-white truncate">{user?.name || 'User'}</p>
+            <p className="text-xs text-gray-500 truncate">{user?.email || ''}</p>
           </div>
-          <ChevronDown size={15} className="text-gray-500 flex-shrink-0" />
+          <button
+            onClick={handleLogout}
+            title="Logout"
+            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-[#1F2937] transition-all flex-shrink-0"
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       </div>
     </aside>
