@@ -172,6 +172,32 @@ class ChatService:
         eq = self._ai.extract_query(question=question_to_search, company_catalog=catalog)
         eq.intent = legacy_intent
 
+        # Run Company Detector for overrides & low-confidence clarification checks (Problem 5 & 8)
+        from app.services.company_detector import CompanyDetector
+        detector = CompanyDetector(self._ai)
+        det_ticker, det_name, det_confidence = detector.detect(question_to_search)
+
+        is_stock_intent = class_res.intent.value in {
+            "financial_metric", "company_overview", "company_comparison", 
+            "annual_report", "earnings_call", "filings", "latest_news", "hybrid_analysis"
+        }
+        if is_stock_intent and det_confidence < 0.7 and not eq.company_identifiers:
+            clarification_msg = "I couldn't confidently identify which company you are asking about. Could you please specify the company name or ticker?"
+            self._session_memory.add_message(session_id or "default_session", "user", question)
+            self._session_memory.add_message(session_id or "default_session", "assistant", clarification_msg)
+            metrics.finalize()
+            return NewsResponse(
+                answer=clarification_msg,
+                intent=legacy_intent, companies=[], metrics=[],
+                financial_data={}, documents=[], news=[], sources=[],
+                warnings=[]
+            )
+
+        if det_ticker and det_confidence >= 0.7:
+            if not eq.company_identifiers or det_ticker not in eq.company_identifiers:
+                if len(eq.company_identifiers) <= 1:
+                    eq.company_identifiers = [det_ticker]
+
         # 7. Execution routing with timing and missing data checks (Problem 8)
         t_start = time.perf_counter()
         ctx = self._retrieve_with_plan(question_to_search, eq, plan, metrics, required_dims)
@@ -321,6 +347,32 @@ class ChatService:
         catalog = self._db.get_company_catalog()
         eq = self._ai.extract_query(question=question_to_search, company_catalog=catalog)
         eq.intent = legacy_intent
+
+        # Run Company Detector for overrides & low-confidence clarification checks (Problem 5 & 8)
+        from app.services.company_detector import CompanyDetector
+        detector = CompanyDetector(self._ai)
+        det_ticker, det_name, det_confidence = detector.detect(question_to_search)
+
+        is_stock_intent = class_res.intent.value in {
+            "financial_metric", "company_overview", "company_comparison", 
+            "annual_report", "earnings_call", "filings", "latest_news", "hybrid_analysis"
+        }
+        if is_stock_intent and det_confidence < 0.7 and not eq.company_identifiers:
+            clarification_msg = "I couldn't confidently identify which company you are asking about. Could you please specify the company name or ticker?"
+            self._session_memory.add_message(session_id or "default_session", "user", question)
+            self._session_memory.add_message(session_id or "default_session", "assistant", clarification_msg)
+            metrics.finalize()
+            return HybridResponse(
+                answer=clarification_msg,
+                intent=legacy_intent, companies=[], metrics=[],
+                financial_data={}, documents=[], sources=[],
+                warnings=[]
+            )
+
+        if det_ticker and det_confidence >= 0.7:
+            if not eq.company_identifiers or det_ticker not in eq.company_identifiers:
+                if len(eq.company_identifiers) <= 1:
+                    eq.company_identifiers = [det_ticker]
 
         # 6. Retrieve
         ctx = self._retrieve_with_plan(question_to_search, eq, plan, metrics, required_dims)

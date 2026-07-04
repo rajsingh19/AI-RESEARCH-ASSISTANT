@@ -6,12 +6,17 @@ import { ShieldAlert } from 'lucide-react'
 
 export default function Home() {
   const { 
+    conversations,
+    selectedConversationId,
     messages, 
     loading, 
     error, 
     sendQuestion, 
     retryLastQuery, 
     newChat, 
+    selectConversation,
+    deleteChat,
+    cancelRequest,
     clearError 
   } = useChat()
   const [showDisclaimer, setShowDisclaimer] = useState(false)
@@ -46,7 +51,13 @@ export default function Home() {
       )}
 
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar messages={messages} onNewChat={newChat} />
+        <Sidebar 
+          conversations={conversations}
+          selectedConversationId={selectedConversationId}
+          onSelectConversation={selectConversation}
+          onDeleteConversation={deleteChat}
+          onNewChat={newChat} 
+        />
         <ChatWindow
           messages={messages}
           loading={loading}
@@ -54,6 +65,7 @@ export default function Home() {
           onSend={sendQuestion}
           onRetry={retryLastQuery}
           onClearError={clearError}
+          onCancel={cancelRequest}
         />
       </div>
     </div>

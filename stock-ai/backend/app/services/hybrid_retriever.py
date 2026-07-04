@@ -65,14 +65,14 @@ class HybridRetriever:
         Returns:
             tuple: (detected_ticker, canonical_name) or (None, None)
         """
-        # 1. Detect company
-        ticker, name = self._detector.detect(question)
+        # 1. Detect company (Problem 5 & 8)
+        ticker, name, confidence = self._detector.detect(question)
         if not ticker:
             logger.info("HybridRetriever: no company detected in query.")
             return None, None
             
         ticker = ticker.upper()
-        logger.info("HybridRetriever: detected ticker=%s, name=%s", ticker, name)
+        logger.info("HybridRetriever: detected ticker=%s, name=%s, confidence=%s", ticker, name, confidence)
 
         if not force_refresh:
             force_refresh = self._is_refresh_requested(question)
@@ -119,6 +119,8 @@ class HybridRetriever:
 
         # 4. If missing dimensions detected, execute dynamic retry retrieval (Problem 8 & 10)
         if missing:
+            logger.info("[DETECTION] Query: %s | Company: %s | Confidence: %f | Source: %s",
+                        question, name or ticker, confidence, "Live Fetch")
             logger.info("[METRICS] Detected Intent: data_aware_query | Required Data Types: %s | Missing Data: %s",
                         [d.value for d in required_dimensions], [d.value for d in missing])
             
@@ -174,6 +176,8 @@ class HybridRetriever:
                 logger.exception("HybridRetriever: Dynamic fetching failed for %s", ticker)
                 return ticker, name
         else:
+            logger.info("[DETECTION] Query: %s | Company: %s | Confidence: %f | Source: %s",
+                        question, name or ticker, confidence, "Vector DB / Cache Hit")
             logger.info("HybridRetriever: cache hit, reusing existing vectors for ticker=%s.", ticker)
             return ticker, name
 

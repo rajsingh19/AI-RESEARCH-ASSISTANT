@@ -1,11 +1,15 @@
 """
-company_registry.py — Single source of truth for resolving tickers, full names, and search terms.
+company_registry.py — Redesigned company registry with dynamic live lookup and mapping cache.
 """
 from __future__ import annotations
 
+import logging
 import re
+import httpx
 
+logger = logging.getLogger(__name__)
 
+# Base static aliases and special mappings catalog
 COMPANY_MAP = {
     "TCS": {
         "ticker": "TCS",
@@ -54,12 +58,6 @@ COMPANY_MAP = {
         "name": "MRF Limited",
         "search_term": "MRF Limited",
         "yahoo_ticker": "MRF.NS"
-    },
-    "HALDIRAM": {
-        "ticker": "HALDIRAM",
-        "name": "Haldiram Foods",
-        "search_term": "Haldiram Foods",
-        "yahoo_ticker": "HALDIRAM.NS"
     },
     "PARLE": {
         "ticker": "PARLE",
@@ -119,48 +117,97 @@ COMPANY_MAP = {
 
 
 class CompanyRegistry:
-    """Registry managing list of supported companies and parsing query aliases."""
+    """Registry managing list of supported companies and dynamically resolving unlisted ones via Yahoo API."""
 
-    @staticmethod
-    def lookup(term: str) -> dict[str, str] | None:
-        """Resolve a lookup term (ticker or alias) case-insensitively."""
+    @classmethod
+    def lookup(cls, term: str, enable_live: bool = False) -> dict[str, str] | None:
+        """Resolve a lookup term (ticker or alias) case-insensitively using cache + live fallback."""
         if not term:
             return None
         cleaned = term.strip().upper()
-        # Direct lookup
+        
+        # 1. Check local config mapping cache
         if cleaned in COMPANY_MAP:
             return COMPANY_MAP[cleaned]
         
-        # Substring lookup in name or keys
-        for key, value in COMPANY_MAP.items():
+        # 2. Check full names and base tickers in cache
+        for key, value in list(COMPANY_MAP.items()):
             if cleaned == value["ticker"].upper() or cleaned == value["name"].upper():
                 return value
             
-        # Try normalizing punctuation
+        # 3. Check normalized punctuation match
         normalized_cleaned = re.sub(r"[^A-Z0-9]", "", cleaned)
-        for key, value in COMPANY_MAP.items():
+        for key, value in list(COMPANY_MAP.items()):
             norm_key = re.sub(r"[^A-Z0-9]", "", key.upper())
             norm_ticker = re.sub(r"[^A-Z0-9]", "", value["ticker"].upper())
             norm_name = re.sub(r"[^A-Z0-9]", "", value["name"].upper())
             if normalized_cleaned in (norm_key, norm_ticker, norm_name):
                 return value
 
+        # 4. If no local match, run live search resolution if enabled
+        if enable_live:
+            resolved = cls.search_ticker(term)
+            if resolved:
+                # Dynamically register in memory cache
+                cls.register_dynamic(resolved["ticker"], resolved)
+                return resolved
+
         return None
 
-    @staticmethod
-    def get_details(ticker: str) -> dict[str, str] | None:
+    @classmethod
+    def search_ticker(cls, company_name: str) -> dict[str, str] | None:
+        """Search Yahoo Finance for the ticker of a company name dynamically."""
+        try:
+            logger.info("CompanyRegistry: dynamic live API search for name: %r", company_name)
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            url = f"https://query2.finance.yahoo.com/v1/finance/search?q={company_name}&quotesCount=3"
+            resp = httpx.get(url, headers=headers, timeout=5.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                quotes = data.get("quotes", [])
+                for q in quotes:
+                    symbol = q.get("symbol")
+                    if symbol:
+                        symbol_upper = symbol.upper()
+                        # Extract base ticker (e.g., NESTLEIND from NESTLEIND.NS)
+                        base_ticker = symbol_upper.split(".")[0]
+                        long_name = q.get("longname") or q.get("shortname") or base_ticker
+                        
+                        resolved_details = {
+                            "ticker": base_ticker,
+                            "name": long_name,
+                            "search_term": long_name,
+                            "yahoo_ticker": symbol_upper
+                        }
+                        logger.info("CompanyRegistry: dynamic live API resolved %s → %s", company_name, base_ticker)
+                        return resolved_details
+        except Exception as exc:
+            logger.warning("CompanyRegistry: Live search failed for %s: %s", company_name, exc)
+        return None
+
+    @classmethod
+    def register_dynamic(cls, ticker: str, details: dict[str, str]) -> None:
+        """Cache a dynamically detected company in the map."""
+        COMPANY_MAP[ticker.upper()] = details
+        # Also cache the name key
+        name_key = details["name"].upper()
+        COMPANY_MAP[name_key] = details
+        logger.info("CompanyRegistry: Dynamically cached details for %s (%s)", details["name"], ticker)
+
+    @classmethod
+    def get_details(cls, ticker: str) -> dict[str, str] | None:
         """Get canonical details for a verified ticker."""
-        for company in COMPANY_MAP.values():
+        for company in list(COMPANY_MAP.values()):
             if company["ticker"].upper() == ticker.strip().upper():
                 return company
         return None
 
-    @staticmethod
-    def list_all() -> list[dict[str, str]]:
+    @classmethod
+    def list_all(cls) -> list[dict[str, str]]:
         """Return unique listed companies."""
         seen: set[str] = set()
         unique = []
-        for value in COMPANY_MAP.values():
+        for value in list(COMPANY_MAP.values()):
             if value["ticker"] not in seen:
                 seen.add(value["ticker"])
                 unique.append(value)

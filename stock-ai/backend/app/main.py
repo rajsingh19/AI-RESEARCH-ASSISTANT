@@ -17,6 +17,7 @@ from app.database.database import engine
 from app.seed import seed_database
 from app.utils.exceptions import AppError
 from app.utils.logging import configure_logging
+from app.models.conversation import Conversation, Message
 
 settings = get_settings()
 configure_logging(settings.log_level)

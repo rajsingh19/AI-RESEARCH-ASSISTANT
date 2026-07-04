@@ -9,26 +9,53 @@ const api = axios.create({
 })
 
 /**
- * Sends the question to the AI assistant backend with transient retry loops and AbortSignals.
- *
- * @param {string} question - User's prompt.
- * @param {AbortSignal} [signal] - Optional signal to cancel the request.
+ * Fetches all conversations list.
  */
-export const sendMessage = async (question, signal) => {
+export const getConversations = async () => {
+  const { data } = await api.get('/api/conversations')
+  return data
+}
+
+/**
+ * Fetches conversation messages by ID.
+ */
+export const getConversationDetails = async (id) => {
+  const { data } = await api.get(`/api/conversations/${id}`)
+  return data
+}
+
+/**
+ * Creates a new conversation session.
+ */
+export const createConversation = async (id = null, title = "New Chat") => {
+  const { data } = await api.post('/api/conversations', { id, title })
+  return data
+}
+
+/**
+ * Deletes a conversation by ID.
+ */
+export const deleteConversation = async (id) => {
+  const { data } = await api.delete(`/api/conversations/${id}`)
+  return data
+}
+
+/**
+ * Sends a message inside an active conversation session with backoff retries and abort signals.
+ */
+export const sendConversationMessage = async (conversationId, question, signal) => {
   let retries = 3
   let delay = 1000
 
   while (retries >= 0) {
     try {
-      const { data } = await api.post('/chat', { question }, { signal })
+      const { data } = await api.post(`/api/conversations/${conversationId}/messages`, { content: question }, { signal })
       return data
     } catch (err) {
-      // 1. If the request was aborted/cancelled intentionally, propagate the error immediately
       if (axios.isCancel(err)) {
         throw err
       }
 
-      // 2. Identify transient conditions (timeout or network error)
       const isTimeout = err.code === 'ECONNABORTED' || err.message?.toLowerCase().includes('timeout')
       const isNetworkError = err.message?.toLowerCase().includes('network error') || !err.response
 
@@ -36,13 +63,84 @@ export const sendMessage = async (question, signal) => {
         console.warn(`Request failed due to ${isTimeout ? 'timeout' : 'network issue'}. Retrying in ${delay}ms... (${retries} attempts remaining)`)
         await new Promise(resolve => setTimeout(resolve, delay))
         retries--
-        delay *= 2 // Exponential backoff scaling
+        delay *= 2
       } else {
-        // Log detailed error logs to client console, not to user-facing viewport
-        console.error("Axios request failure details:", err)
+        console.error("Axios message delivery failure details:", err)
         throw err
       }
     }
+  }
+}
+
+/**
+ * Sends a query message and streams assistant response tokens via Server-Sent Events (SSE).
+ */
+export const sendConversationMessageStream = async (conversationId, question, onChunk, onMetadata, signal) => {
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const response = await fetch(`${baseURL}/api/conversations/${conversationId}/messages/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content: question }),
+    signal
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `HTTP error! status: ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  let isMetadataEvent = false;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      
+      // Keep the last partial line in the buffer
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (trimmed.startsWith('event: metadata')) {
+          isMetadataEvent = true;
+          continue;
+        }
+
+        if (trimmed.startsWith('data: ')) {
+          const rawData = trimmed.slice(6);
+          try {
+            const parsed = JSON.parse(rawData);
+            if (isMetadataEvent) {
+              onMetadata(parsed);
+              isMetadataEvent = false;
+            } else if (parsed && parsed.token !== undefined) {
+              onChunk(parsed.token);
+            }
+          } catch (e) {
+            console.error("Failed to parse SSE data block:", e);
+          }
+          isMetadataEvent = false;
+        }
+      }
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log("Stream reading aborted by client.");
+    } else {
+      throw error;
+    }
+  } finally {
+    reader.releaseLock();
   }
 }
 

@@ -1,18 +1,89 @@
-import { Plus, MessageSquare, Sparkles, ChevronDown } from 'lucide-react'
+import { Plus, MessageSquare, Sparkles, ChevronDown, Trash2 } from 'lucide-react'
 
-const MOCK_RECENT = [
-  { id: 1, text: "Summarise TCS's latest results", time: "2 mins ago" },
-  { id: 2, text: "Compare HDFC vs ICICI margins", time: "1 hour ago" },
-  { id: 3, text: "Why did Reliance stock fall today?", time: "3 hours ago" },
-  { id: 4, text: "Top growth drivers for Infosys", time: "Yesterday" },
-  { id: 5, text: "What are the key risks for TCS?", time: "2 days ago" },
-]
+export default function Sidebar({
+  conversations = [],
+  selectedConversationId,
+  onSelectConversation,
+  onDeleteConversation,
+  onNewChat
+}) {
+  // Chronological grouping helper
+  const getGroupedConversations = () => {
+    const groups = {
+      today: [],
+      yesterday: [],
+      last7Days: [],
+      last30Days: [],
+      older: []
+    }
 
-export default function Sidebar({ messages, onNewChat }) {
-  const userMessages = messages.filter(m => m.role === 'user')
-  const recentChats = userMessages.length > 0
-    ? userMessages.slice(-5).reverse().map((m, i) => ({ id: m.id, text: m.content, time: i === 0 ? 'Just now' : `${i * 2} mins ago` }))
-    : MOCK_RECENT
+    const now = new Date()
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000
+    const sevenDaysAgoStart = todayStart - 6 * 24 * 60 * 60 * 1000
+    const thirtyDaysAgoStart = todayStart - 29 * 24 * 60 * 60 * 1000
+
+    conversations.forEach(conv => {
+      const updatedTime = new Date(conv.updatedAt).getTime()
+      if (updatedTime >= todayStart) {
+        groups.today.push(conv)
+      } else if (updatedTime >= yesterdayStart) {
+        groups.yesterday.push(conv)
+      } else if (updatedTime >= sevenDaysAgoStart) {
+        groups.last7Days.push(conv)
+      } else if (updatedTime >= thirtyDaysAgoStart) {
+        groups.last30Days.push(conv)
+      } else {
+        groups.older.push(conv)
+      }
+    })
+
+    return groups
+  }
+
+  const grouped = getGroupedConversations()
+
+  const renderGroup = (title, items) => {
+    if (items.length === 0) return null
+    return (
+      <div className="mb-4">
+        <p className="text-[11px] text-gray-500 font-bold tracking-wider uppercase px-2 mb-2">{title}</p>
+        <div className="space-y-1">
+          {items.map(conv => {
+            const isActive = conv.id === selectedConversationId
+            return (
+              <div
+                key={conv.id}
+                onClick={() => onSelectConversation(conv.id)}
+                className={`px-3 py-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-between group ${
+                  isActive
+                    ? 'bg-[#1a2235] border border-[#2d3748]/80 text-white'
+                    : 'text-gray-300 hover:bg-[#111827] hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <MessageSquare size={14} className={isActive ? 'text-indigo-400' : 'text-gray-500'} />
+                  <span className="text-sm font-medium truncate leading-tight flex-1 pr-1">{conv.title}</span>
+                </div>
+                {onDeleteConversation && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteConversation(conv.id)
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[#1F2937] rounded-lg text-gray-500 hover:text-red-400 transition-all ml-1.5 flex-shrink-0"
+                    title="Delete Chat"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <aside className="w-72 flex-shrink-0 flex flex-col bg-[#0d1526] border-r border-[#1F2937] h-full">
@@ -27,23 +98,19 @@ export default function Sidebar({ messages, onNewChat }) {
         </button>
       </div>
 
-      {/* Recent Chats */}
-      <div className="flex-1 overflow-y-auto px-3">
-        <p className="text-xs text-gray-500 font-medium px-2 mb-2">Recent Chats</p>
-        <div className="space-y-1">
-          {recentChats.map((chat, i) => (
-            <div
-              key={chat.id}
-              className={`px-3 py-3 rounded-xl cursor-pointer transition-colors group ${i === 0 ? 'bg-[#1a2235] border border-[#2d3748]' : 'hover:bg-[#111827]'}`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm text-gray-200 leading-snug truncate flex-1">{chat.text}</p>
-                {i === 0 && <MessageSquare size={14} className="text-gray-500 flex-shrink-0 mt-0.5" />}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">{chat.time}</p>
-            </div>
-          ))}
-        </div>
+      {/* Grouped Conversations Scroll area */}
+      <div className="flex-1 overflow-y-auto px-3 select-none">
+        {conversations.length === 0 ? (
+          <div className="text-center py-8 text-xs text-gray-500">No conversations yet</div>
+        ) : (
+          <>
+            {renderGroup("Today", grouped.today)}
+            {renderGroup("Yesterday", grouped.yesterday)}
+            {renderGroup("Previous 7 Days", grouped.last7Days)}
+            {renderGroup("Previous 30 Days", grouped.last30Days)}
+            {renderGroup("Older", grouped.older)}
+          </>
+        )}
       </div>
 
       {/* Info Card */}

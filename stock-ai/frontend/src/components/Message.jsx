@@ -164,8 +164,11 @@ export default function Message({ message }) {
       {/* Card */}
       <div className="flex-1 min-w-0 bg-[#111827] border border-[#1F2937] rounded-2xl rounded-tl-sm px-5 py-4 shadow-lg">
         {/* Answer text */}
-        <div className="prose-dark text-sm">
+        <div className="prose-dark text-sm inline">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          {message.role === 'assistant' && message.loading && (
+            <span className="ml-1 text-indigo-400 font-semibold animate-pulse align-middle">▌</span>
+          )}
         </div>
 
         {/* Financial metrics grid */}

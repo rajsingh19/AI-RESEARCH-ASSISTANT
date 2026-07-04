@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { StopCircle } from 'lucide-react'
 import Message from './Message'
 import LoadingMessage from './LoadingMessage'
 import ChatInput from './ChatInput'
@@ -16,14 +17,15 @@ export default function ChatWindow({
   error, 
   onSend, 
   onRetry, 
-  onClearError 
+  onClearError,
+  onCancel
 }) {
   const bottomRef = useRef(null)
   const isEmpty = messages.length === 0
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, loading])
+    bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+  }, [messages])
 
   return (
     <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
@@ -42,7 +44,6 @@ export default function ChatWindow({
         ) : (
           <>
             {messages.map(msg => <Message key={msg.id} message={msg} />)}
-            {loading && <LoadingMessage />}
           </>
         )}
         <div ref={bottomRef} />
@@ -78,6 +79,19 @@ export default function ChatWindow({
               {chip}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Cancel request button overlay while streaming */}
+      {loading && onCancel && (
+        <div className="flex justify-center mb-2">
+          <button
+            onClick={onCancel}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 rounded-xl text-sm font-semibold text-red-400 hover:text-white transition-all shadow-md animate-pulse"
+          >
+            <StopCircle size={15} />
+            Stop Generating
+          </button>
         </div>
       )}
 
