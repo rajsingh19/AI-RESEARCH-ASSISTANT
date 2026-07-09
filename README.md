@@ -177,11 +177,7 @@ flowchart TD
 ### Backend Setup
 1. Navigate to `/stock-ai/backend`.
 2. Configure configuration environment variables in `.env` (refer to `.env.example`).
-3. Run the database seed refresh script:
-   ```bash
-   venv/bin/python scratch/refresh_db.py
-   ```
-4. Start the FastAPI development server:
+3. Start the FastAPI development server:
    ```bash
    venv/bin/uvicorn app.main:app --reload
    ```
