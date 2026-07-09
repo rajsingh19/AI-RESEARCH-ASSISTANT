@@ -48,6 +48,12 @@ async def lifespan(_: FastAPI):
                 logger.info("Database Migration: Added data_source column to companies table.")
             except Exception:
                 db_session.rollback()
+            try:
+                db_session.execute(text("ALTER TABLE companies ADD COLUMN reporting_period VARCHAR(255)"))
+                db_session.commit()
+                logger.info("Database Migration: Added reporting_period column to companies table.")
+            except Exception:
+                db_session.rollback()
 
         seed_database()
 
@@ -94,7 +100,17 @@ app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
+<<<<<<< HEAD
     allow_origins=["https://ai-research-assistant-two-phi.vercel.app","http://localhost:5173"],
+=======
+    allow_origins=[
+        "https://ai-research-assistant-two-phi.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+>>>>>>> 57e11f8 (solving auth issue)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

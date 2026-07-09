@@ -27,7 +27,7 @@ export default function Home() {
       <header className="flex items-center justify-between px-5 py-3 bg-[#0d1526] border-b border-[#1F2937] z-10 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-lg">
-            🐼
+            📈
           </div>
           <div>
             <p className="text-sm font-bold text-white leading-tight">Stock AI Assistant</p>

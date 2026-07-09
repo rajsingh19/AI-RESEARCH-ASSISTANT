@@ -13,10 +13,10 @@ class ResponseFormatter:
             "Do NOT include any summary, supporting evidence, news, confidence level, risk analysis, "
             "business overview, or investment disclaimer (unless strictly required by policy).\n\n"
             "[Full Company Name]\n"
-            "[Metric 1 Name]: [Value 1]\n"
-            "[Metric 2 Name]: [Value 2] (if requested)\n"
+            "[Metric 1 Name] (reporting period, e.g. FY2025 or Q1 FY2026): [Value 1]\n"
+            "[Metric 2 Name] (reporting period, e.g. FY2025 or Q1 FY2026): [Value 2] (if requested)\n"
             "Source: [Source, e.g., Structured Financial Data (SQLite Database) or SQLite Financial Metrics]\n"
-            "Timestamp: [Optional Date/Year if available]"
+            "Latest Reported Period: [Reporting Period, e.g. FY2025 or Q1 FY2026]"
         ),
         "earnings_analysis": (
             "Format your response as a detailed Morgan Stanley/Goldman Sachs-style research note containing:\n"

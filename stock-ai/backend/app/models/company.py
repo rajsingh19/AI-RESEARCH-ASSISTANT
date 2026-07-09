@@ -29,6 +29,7 @@ class Company(Base):
     country: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_updated: Mapped[str | None] = mapped_column(String(255), nullable=True)
     data_source: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reporting_period: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class CompanyFinancialHistory(Base):

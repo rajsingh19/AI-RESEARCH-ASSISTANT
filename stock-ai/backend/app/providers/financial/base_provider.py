@@ -45,6 +45,7 @@ class CompanyFinancialsPayload(BaseModel):
     profit: float
     eps: float
     pe_ratio: float
+    reporting_period: str = Field(default="FY2025", description="The reporting period of the fetched financials, e.g. 'FY2025' or 'Q1 FY2026'")
 
 
 class CompanyHistoricalFinancialsPayload(BaseModel):

@@ -79,6 +79,19 @@ class DBService:
         for company in selected_companies:
             ticker_upper = company.ticker.upper()
             
+            # 2. Fetch history
+            hist_rows = self.db.query(CompanyFinancialHistory).filter(
+                CompanyFinancialHistory.ticker == ticker_upper
+            ).order_by(CompanyFinancialHistory.year.asc()).all()
+
+            # Resolve reporting period
+            latest_hist = hist_rows[-1] if hist_rows else None
+            rep_period = company.reporting_period
+            if not rep_period and latest_hist:
+                rep_period = f"FY{latest_hist.year}"
+            if not rep_period:
+                rep_period = "FY2025"
+
             # 1. Fetch metadata
             company_metadata[ticker_upper] = {
                 "sector": company.sector,
@@ -92,13 +105,9 @@ class DBService:
                 "country": company.country,
                 "last_updated": company.last_updated,
                 "data_source": company.data_source,
-                "is_live": getattr(company, "_is_live", None)
+                "is_live": getattr(company, "_is_live", None),
+                "reporting_period": rep_period
             }
-
-            # 2. Fetch history
-            hist_rows = self.db.query(CompanyFinancialHistory).filter(
-                CompanyFinancialHistory.ticker == ticker_upper
-            ).order_by(CompanyFinancialHistory.year.asc()).all()
             company_history[ticker_upper] = [
                 {
                     "year": h.year, "revenue": h.revenue, "profit": h.profit, "eps": h.eps,
@@ -206,12 +215,19 @@ class DBService:
         profit = company.profit
         eps = company.eps
         pe_ratio = company.pe_ratio
+        rep_period = company.reporting_period
         
-        if latest_hist:
+        if rep_period and rep_period.strip().startswith("Q"):
+            logger.info("db_service: Keeping live fetched quarterly metrics for %s: %s", company.ticker, rep_period)
+        elif latest_hist:
             revenue = latest_hist.revenue
             profit = latest_hist.profit
             eps = latest_hist.eps
+            rep_period = f"FY{latest_hist.year}"
             logger.info("db_service: Overwriting CompanySnapshot current metrics with latest history year %d for %s", latest_hist.year, company.ticker)
+
+        if not rep_period:
+            rep_period = "FY2025"
 
         is_live = getattr(company, "_is_live", None)
         return CompanySnapshot(
@@ -223,7 +239,8 @@ class DBService:
             pe_ratio=pe_ratio,
             last_updated=company.last_updated,
             data_source=company.data_source,
-            is_live=is_live
+            is_live=is_live,
+            reporting_period=rep_period
         )
 
     def _normalize(self, value: str) -> str:

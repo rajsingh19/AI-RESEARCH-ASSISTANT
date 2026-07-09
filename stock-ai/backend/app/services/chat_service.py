@@ -725,6 +725,7 @@ class ChatService:
                 "last_updated": c.last_updated,
                 "data_source": c.data_source,
                 "is_live": c.is_live,
+                "reporting_period": c.reporting_period,
             }
             for c in companies
         }

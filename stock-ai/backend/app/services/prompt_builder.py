@@ -109,7 +109,24 @@ class PromptBuilder:
             "You MUST only use the structured financial data provided in the prompt context. "
             "If any metric or value is not present in the context, explicitly state that it is not available."
         )
-        prompt = prompt + no_hallucinate_clause + override_section
+        
+        rep_period_clause = (
+            "\n\n======================\n"
+            "STRICT REPORTING PERIOD DIRECTIVES:\n"
+            "1. Every single financial metric (Revenue, Net Profit, EPS, Operating Margin, PE Ratio, etc.) you mention in your response MUST explicitly mention its reporting period in parentheses next to the metric name.\n"
+            "   Examples:\n"
+            "   - Revenue (FY2025): ₹255,450 Cr\n"
+            "   - Net Profit (FY2025): ₹48,500 Cr\n"
+            "   - EPS (FY2025): 134.5\n"
+            "   - Operating Margin (FY2025): 25.1%\n"
+            "   - Revenue (Q1 FY2026): ₹65,420 Cr (if quarterly data is used)\n"
+            "2. In the Summary/Overview section, you must explicitly mention the reporting period. E.g., 'According to the latest reported financial year (FY2025)...' or 'According to the latest reported quarter (Q1 FY2026)...'.\n"
+            "3. If quarterly data is present in the prompt context and is more recent than the annual/FY data, you MUST prioritize and use the quarterly data and state it explicitly. E.g., 'According to the latest reported quarter (Q1 FY2026)...'.\n"
+            "4. NEVER use the current calendar year (e.g. 2026 or 2027) unless financial results for that period have actually been reported in the prompt context.\n"
+            "5. Always display this metadata line at the very bottom of your response:\n"
+            "   Latest Reported Period: <period> (e.g. FY2025 or Q1 FY2026)\n"
+        )
+        prompt = prompt + no_hallucinate_clause + rep_period_clause + override_section
 
         return prompt
 
@@ -200,7 +217,9 @@ class PromptBuilder:
 
         for company in ctx.companies:
             ticker = company.ticker.upper()
+            rep_period = getattr(company, "reporting_period", None) or "FY2025"
             lines.append(f"Company: {company.company_name} ({ticker})")
+            lines.append(f"  Reporting Period for Current Metrics: {rep_period}")
             
             # 1. Current metrics
             lines.append("  Current Financial Metrics:")

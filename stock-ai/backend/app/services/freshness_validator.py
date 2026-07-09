@@ -105,15 +105,19 @@ class FreshnessValidator:
                 company._is_live = True
                 
                 # Auto-sync company current metrics with latest historical year record (Requirement 5)
-                from app.models.company import CompanyFinancialHistory
-                latest_hist = db.query(CompanyFinancialHistory).filter(
-                    CompanyFinancialHistory.ticker == ticker_upper
-                ).order_by(CompanyFinancialHistory.year.desc()).first()
-                if latest_hist:
-                    company.revenue = latest_hist.revenue
-                    company.profit = latest_hist.profit
-                    company.eps = latest_hist.eps
-                    logger.info("[METRICS] SQLite Synchronized with latest historical year %d for %s.", latest_hist.year, ticker_upper)
+                if company.reporting_period and company.reporting_period.strip().startswith("Q"):
+                    logger.info("[METRICS] Keeping newer quarterly metrics for %s: %s", ticker_upper, company.reporting_period)
+                else:
+                    from app.models.company import CompanyFinancialHistory
+                    latest_hist = db.query(CompanyFinancialHistory).filter(
+                        CompanyFinancialHistory.ticker == ticker_upper
+                    ).order_by(CompanyFinancialHistory.year.desc()).first()
+                    if latest_hist:
+                        company.revenue = latest_hist.revenue
+                        company.profit = latest_hist.profit
+                        company.eps = latest_hist.eps
+                        company.reporting_period = f"FY{latest_hist.year}"
+                        logger.info("[METRICS] SQLite Synchronized with latest historical year %d for %s.", latest_hist.year, ticker_upper)
 
                 db.commit()
                 db.refresh(company)

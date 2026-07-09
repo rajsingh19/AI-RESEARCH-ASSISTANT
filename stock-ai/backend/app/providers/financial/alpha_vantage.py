@@ -150,7 +150,12 @@ class AlphaVantageProvider(FinancialDataProvider):
         return response.parsed  # type: ignore
 
     def _compile_financials_via_llm(self, ticker: str) -> CompanyFinancialsPayload:
-        prompt = f"Research and compile current financials (Rev, Profit, EPS, PE) for '{ticker}'. Return JSON matching CompanyFinancialsPayload."
+        prompt = (
+            f"Research and compile current financials (Rev, Profit, EPS, PE) for '{ticker}'. "
+            f"Identify the latest reported period (year like 'FY2025' or quarter like 'Q1 FY2026' if it is more recent than the annual data) and set the 'reporting_period' field to this period. "
+            f"If the company is Indian, scale all financial table 'revenue' and 'profit' values to Crores of Rupees. "
+            f"Return JSON matching CompanyFinancialsPayload."
+        )
         response = self._ai.client.models.generate_content(
             model=self._ai.settings.gemini_model,
             contents=prompt,

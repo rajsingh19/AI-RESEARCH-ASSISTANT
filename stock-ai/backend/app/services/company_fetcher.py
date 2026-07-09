@@ -145,6 +145,7 @@ class CompanyFetcher:
         company.profit = payload.profit
         company.eps = payload.eps
         company.pe_ratio = payload.pe_ratio
+        company.reporting_period = payload.reporting_period
         
         db.commit()
         logger.info("CompanyFetcher: Core financials updated successfully for %s.", ticker_upper)

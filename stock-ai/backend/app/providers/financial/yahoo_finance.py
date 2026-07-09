@@ -62,8 +62,10 @@ class YahooFinanceProvider(FinancialDataProvider):
         logger.info("YahooFinanceProvider: get_financials ticker=%s", ticker)
         prompt = (
             f"Research and compile current core financials for stock ticker '{ticker}'.\n"
+            f"Identify the latest reported period for these financials (this should be a fiscal year like 'FY2025' or a specific quarter like 'Q1 FY2026' if it is more recent than the annual data). "
+            f"Set the 'reporting_period' field to this identified period (e.g. 'FY2025' or 'Q1 FY2026').\n"
             f"If the company is Indian (e.g. SBIN, BHARTIARTL, TATAMOTORS, MRF, NESTLEIND, ADANIENT, TCS, INFY), "
-            f"scale the annual 'revenue' and 'profit' values to **Crores of Rupees** (Rs. crore, i.e., 10,000,000 INR). "
+            f"scale the 'revenue' and 'profit' values of that period to **Crores of Rupees** (Rs. crore, i.e., 10,000,000 INR). "
             f"Otherwise use standard local currency millions.\n"
             f"Respond only with JSON matching the CompanyFinancialsPayload schema."
         )

@@ -83,6 +83,7 @@ class CompanySnapshot(BaseModel):
     last_updated: str | None = None
     data_source: str | None = None
     is_live: bool | None = None
+    reporting_period: str | None = None
 
 
 class RetrievalContext(BaseModel):

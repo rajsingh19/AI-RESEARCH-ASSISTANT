@@ -4,7 +4,7 @@ import { ExternalLink } from 'lucide-react'
 
 // Source favicon helpers
 const SOURCE_ICONS = {
-  'investor.tcs.com': '🐼',
+  'investor.tcs.com': '📈',
   'economictimes.com': '📰',
   'moneycontrol.com': '📊',
   'business-standard.com': '📋',
@@ -181,7 +181,7 @@ export default function Message({ message }) {
     <div className="flex items-start gap-3">
       {/* Avatar */}
       <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-base flex-shrink-0 mt-1">
-        🐼
+        📈
       </div>
 
       {isThinking ? (
