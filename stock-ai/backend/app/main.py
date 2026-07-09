@@ -100,9 +100,6 @@ app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
-<<<<<<< HEAD
-    allow_origins=["https://ai-research-assistant-two-phi.vercel.app","http://localhost:5173"],
-=======
     allow_origins=[
         "https://ai-research-assistant-two-phi.vercel.app",
         "http://localhost:5173",
@@ -110,7 +107,6 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],
->>>>>>> 57e11f8 (solving auth issue)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
